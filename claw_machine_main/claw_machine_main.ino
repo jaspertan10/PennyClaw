@@ -3,24 +3,25 @@
 #include "arcade_buttons.h"
 
 
-/***** A4988 Stepper Driver & Nema 17 ******/
+/*************** A4988 Stepper Driver & Nema 17 ****************/
 #if (STEPPER_DRIVER_ENABLE != 0)
 #define NUM_STEPPERS    3
 #define STEPPER_INITIAL_STEP 0
 
 #define X_STEPPER_STEP_LIMIT    700
 #define Y_STEPPER_STEP_LIMIT    900
+#define Z_STEPPER_STEP_LIMIT    2000
 
 stepper_driver_t steppers[NUM_STEPPERS] = {
   {X_STEPPER_EN_PIN, X_STEPPER_STEP_PIN, X_STEPPER_DIR_PIN, true, X_STEPPER_STEP_LIMIT, STEPPER_INITIAL_STEP},   //STEPPER_X_AXIS
   {Y_STEPPER_EN_PIN, Y_STEPPER_STEP_PIN, Y_STEPPER_DIR_PIN, false, Y_STEPPER_STEP_LIMIT, STEPPER_INITIAL_STEP},   //STEPPER_Y_AXIS
-  {Z_STEPPER_EN_PIN, Z_STEPPER_STEP_PIN, Z_STEPPER_DIR_PIN, false, 1000, STEPPER_INITIAL_STEP}    //STEPPER_Z_AXIS
+  {Z_STEPPER_EN_PIN, Z_STEPPER_STEP_PIN, Z_STEPPER_DIR_PIN, true, Z_STEPPER_STEP_LIMIT, STEPPER_INITIAL_STEP}    //STEPPER_Z_AXIS
 };
 #endif // STEPPER_DRIVER_ENABLE
 
-/***** Arcade Joystick & Buttons ******/
-#if (ARCADE_ENABLE != 0)
 
+/*************** Arcade Joystick & Buttons ****************/
+#if (ARCADE_ENABLE != 0)
 arcade_button_t joystick[ARCADE_JOYSTICK_DIRECTIONS] = {
   {JOYSTICK_UP_PIN, HIGH, ARCADE_INITIAL_LAST_CHANGE, ARCADE_DEBOUNCE_TIME}, //JOYSTICK_UP
   {JOYSTICK_DOWN_PIN, HIGH, ARCADE_INITIAL_LAST_CHANGE, ARCADE_DEBOUNCE_TIME}, //JOYSTICK_DOWN
@@ -34,20 +35,13 @@ arcade_button_t grab_button = {ARCADE_GRAB_BUTTON_PIN, HIGH, ARCADE_INITIAL_LAST
 
 arcade_button_t x_limit_switch_button = {X_LIMIT_SWITCH_BUTTON_PIN, HIGH, ARCADE_INITIAL_LAST_CHANGE, ARCADE_DEBOUNCE_TIME};
 arcade_button_t y_limit_switch_button = {Y_LIMIT_SWITCH_BUTTON_PIN, HIGH, ARCADE_INITIAL_LAST_CHANGE, ARCADE_DEBOUNCE_TIME};
-
+arcade_button_t z_limit_switch_button = {Z_LIMIT_SWITCH_BUTTON_PIN, HIGH, ARCADE_INITIAL_LAST_CHANGE, ARCADE_DEBOUNCE_TIME};
 #endif //ARCADE_ENABLE
 
 
 
 
 
-
-
-
-void handle_init_state();
-void handle_wait_penny();
-void handle_play_state();
-void handle_end_game_state();
 
 typedef enum {
   INIT_STATE,
@@ -59,6 +53,10 @@ typedef enum {
 
 States current_state = INIT_STATE;
 
+void handle_init_state();
+void handle_wait_penny();
+void handle_play_state();
+void handle_end_game_state();
 
 
 /***************************************************************************************************************************************************/
@@ -90,6 +88,7 @@ void setup() {
   //Initialize the limit switches
   x_limit_switch_button.init();
   y_limit_switch_button.init();
+  z_limit_switch_button.init();
 #endif //ARCADE_ENABLE
 
 
@@ -103,9 +102,9 @@ void setup() {
 void loop() {
 
 
-#if 1
   switch (current_state) {
     case INIT_STATE:
+      handle_init_state();
       current_state = WAIT_PENNY_STATE;
     break;
 
@@ -114,59 +113,7 @@ void loop() {
     break;
 
     case PLAY_STATE:
-      if (joystick[JOYSTICK_UP].is_pressed()) {
-        if (steppers[STEPPER_Y_AXIS].current_step < steppers[STEPPER_Y_AXIS].step_limit) {
-          steppers[STEPPER_Y_AXIS].enable();
-          steppers[STEPPER_Y_AXIS].forward();
-          steppers[STEPPER_Y_AXIS].steps(50);
-          steppers[STEPPER_Y_AXIS].disable();
-        }
-      }
-      else if (joystick[JOYSTICK_DOWN].is_pressed()) {
-        if (!y_limit_switch_button.is_held()) {
-          steppers[STEPPER_Y_AXIS].enable();
-          steppers[STEPPER_Y_AXIS].backward();
-          steppers[STEPPER_Y_AXIS].steps(50);
-          steppers[STEPPER_Y_AXIS].disable();
-        }
-      }
-      else if (joystick[JOYSTICK_LEFT].is_pressed()) {
-        if (!x_limit_switch_button.is_held()) {
-          steppers[STEPPER_X_AXIS].enable();
-          steppers[STEPPER_X_AXIS].backward();
-          steppers[STEPPER_X_AXIS].steps(50);
-          steppers[STEPPER_X_AXIS].disable();
-        }
-      }
-      else if (joystick[JOYSTICK_RIGHT].is_pressed()) {
-        if (steppers[STEPPER_X_AXIS].current_step < steppers[STEPPER_X_AXIS].step_limit) {
-          steppers[STEPPER_X_AXIS].enable();
-          steppers[STEPPER_X_AXIS].forward();
-          steppers[STEPPER_X_AXIS].steps(50);
-          steppers[STEPPER_X_AXIS].disable();
-        }
-      }
-      else if (up_button.is_pressed()) {
-
-        steppers[STEPPER_Z_AXIS].forward();
-        steppers[STEPPER_Z_AXIS].steps(50);
-      }
-      else if (down_button.is_pressed()) {
-
-        steppers[STEPPER_Z_AXIS].backward();
-        steppers[STEPPER_Z_AXIS].steps(50);
-      }
-
-
-
-
-      if (x_limit_switch_button.is_held()) {
-        steppers[STEPPER_X_AXIS].current_step = 0;
-        Serial.println(steppers[STEPPER_X_AXIS].current_step);
-      }
-      if (y_limit_switch_button.is_held()) {
-        steppers[STEPPER_Y_AXIS].current_step = 0;
-      }
+      handle_play_state();
     break;
 
     case GAME_OVER_STATE:
@@ -175,12 +122,106 @@ void loop() {
 
   }
 
+}
 
-#endif
 
+
+
+void handle_init_state() {
+
+  //Initialize X to home position
+  while (!x_limit_switch_button.is_held()) {
+    steppers[STEPPER_X_AXIS].enable();
+    steppers[STEPPER_X_AXIS].backward();
+    steppers[STEPPER_X_AXIS].steps(50);
+    steppers[STEPPER_X_AXIS].disable();
+  }
+
+  //Initialize Y to home position
+  while (!y_limit_switch_button.is_held()) {
+    steppers[STEPPER_Y_AXIS].enable();
+    steppers[STEPPER_Y_AXIS].backward();
+    steppers[STEPPER_Y_AXIS].steps(50);
+    steppers[STEPPER_Y_AXIS].disable();
+  }
+
+  while (!z_limit_switch_button.is_held()) {
+    steppers[STEPPER_Z_AXIS].backward();
+    steppers[STEPPER_Z_AXIS].steps(50);
+  }
+
+  steppers[STEPPER_X_AXIS].current_step = 0;
+  steppers[STEPPER_Y_AXIS].current_step = 0;
+  steppers[STEPPER_Z_AXIS].current_step = 0;
+}
+
+void handle_wait_penny() {
 
 }
 
+void handle_play_state() {
+  if (joystick[JOYSTICK_UP].is_pressed()) {
+    if (steppers[STEPPER_Y_AXIS].current_step < steppers[STEPPER_Y_AXIS].step_limit) {
+      steppers[STEPPER_Y_AXIS].enable();
+      steppers[STEPPER_Y_AXIS].forward();
+      steppers[STEPPER_Y_AXIS].steps(50);
+      steppers[STEPPER_Y_AXIS].disable();
+    }
+  }
+  else if (joystick[JOYSTICK_DOWN].is_pressed()) {
+    if (steppers[STEPPER_Y_AXIS].current_step > 0) {
+      steppers[STEPPER_Y_AXIS].enable();
+      steppers[STEPPER_Y_AXIS].backward();
+      steppers[STEPPER_Y_AXIS].steps(50);
+      steppers[STEPPER_Y_AXIS].disable();
+    }
+  }
+  else if (joystick[JOYSTICK_LEFT].is_pressed()) {
+    if (steppers[STEPPER_X_AXIS].current_step > 0) {
+      steppers[STEPPER_X_AXIS].enable();
+      steppers[STEPPER_X_AXIS].backward();
+      steppers[STEPPER_X_AXIS].steps(50);
+      steppers[STEPPER_X_AXIS].disable();
+    }
+  }
+  else if (joystick[JOYSTICK_RIGHT].is_pressed()) {
+    if (steppers[STEPPER_X_AXIS].current_step < steppers[STEPPER_X_AXIS].step_limit) {
+      steppers[STEPPER_X_AXIS].enable();
+      steppers[STEPPER_X_AXIS].forward();
+      steppers[STEPPER_X_AXIS].steps(50);
+      steppers[STEPPER_X_AXIS].disable();
+    }
+  }
+  else if (up_button.is_pressed()) {
+    
+    if (steppers[STEPPER_Z_AXIS].current_step > 0) {
+      steppers[STEPPER_Z_AXIS].backward();
+      steppers[STEPPER_Z_AXIS].steps(50);
+    }
+  }
+  else if (down_button.is_pressed()) {
+
+    if (steppers[STEPPER_Z_AXIS].current_step < steppers[STEPPER_Z_AXIS].step_limit) {
+      steppers[STEPPER_Z_AXIS].forward();
+      steppers[STEPPER_Z_AXIS].steps(50);
+    }
+  }
+
+
+
+  /* Limit switches activated for either XYZ switch. Set current step to 0 */
+  if (x_limit_switch_button.is_held()) {
+    steppers[STEPPER_X_AXIS].current_step = 0;
+  }
+  if (y_limit_switch_button.is_held()) {
+    steppers[STEPPER_Y_AXIS].current_step = 0;
+  }
+  if (z_limit_switch_button.is_pressed()) {
+    steppers[STEPPER_Z_AXIS].current_step = 0;
+  }
+}
+
+void handle_end_game_state();
 
 
 
