@@ -30,38 +30,37 @@ arcade_button_t grab_button = {ARCADE_GRAB_BUTTON_PIN, HIGH, ARCADE_INITIAL_LAST
 
 arcade_button_t x_limit_switch_button = {X_LIMIT_SWITCH_BUTTON_PIN, HIGH, ARCADE_INITIAL_LAST_CHANGE, ARCADE_DEBOUNCE_TIME};
 arcade_button_t y_limit_switch_button = {Y_LIMIT_SWITCH_BUTTON_PIN, HIGH, ARCADE_INITIAL_LAST_CHANGE, ARCADE_DEBOUNCE_TIME};
-
+arcade_button_t z_limit_switch_button = {Z_LIMIT_SWITCH_BUTTON_PIN, HIGH, ARCADE_INITIAL_LAST_CHANGE, ARCADE_DEBOUNCE_TIME};
 #endif //ARCADE_ENABLE
 
 
 
+void handle_init_state();
+void handle_wait_penny();
+void handle_play_state();
+void handle_end_game_state();
+
+typedef enum {
+  INIT_STATE,
+  WAIT_PENNY_STATE,
+  PLAY_STATE,
+  GAME_OVER_STATE,
+  ERROR_STATE
+} States;
+
+States current_state = INIT_STATE;
 
 
 
 
-
-
-#define STEP_PIN      29
-#define DIR_PIN       30
-#define EN_PIN        28
-#define STEPPER_ENABLE 1
-
-void enable_stepper()
-{
-  digitalWrite(EN_PIN, LOW);
-}
-
-void disable_stepper()
-{
-  digitalWrite(EN_PIN, HIGH);
-}
-
+/***************************************************************************************************************************************************/
 
 void setup() {
 
 #if (STEPPER_ENABLE != 0)
   steppers[STEPPER_X_AXIS].init();
   steppers[STEPPER_Y_AXIS].init();
+  steppers[STEPPER_Z_AXIS].init();
 
 #endif //STEPPER_ENABLE
 
@@ -80,6 +79,7 @@ void setup() {
   //Initialize the limit switches
   x_limit_switch_button.init();
   y_limit_switch_button.init();
+  z_limit_switch_button.init();
 #endif //ARCADE_ENABLE
 
 
@@ -90,8 +90,40 @@ int step_count = 0;
 
 void loop() {
 
+  if (current_state == INIT_STATE) {
+    handle_init_state();
+  }
+  else if (current_state == WAIT_PENNY_STATE) {
+    handle_wait_penny();
+  }
+  else if (current_state == PLAY_STATE) {
+    handle_play_state();
+  }
+  else if (current_state == GAME_OVER_STATE) {
+    handle_end_game_state();
+  }
 
-#if 1
+
+}
+
+
+
+
+void handle_init_state() {
+
+  //Initiate go home state
+
+
+
+  current_state = WAIT_PENNY_STATE;
+}
+
+void handle_wait_penny() {
+  current_state = PLAY_STATE;
+}
+
+void handle_play_state() {
+
   if (joystick[JOYSTICK_UP].is_pressed()) {
     Serial.println("JOYSTICK Up");
     steppers[STEPPER_Y_AXIS].forward();
@@ -115,11 +147,53 @@ void loop() {
     step_count+= 50;
     Serial.println(step_count);
   }
-  
 
-#endif
+  if (up_button.is_pressed()) {
+    Serial.println("CLAW UP");
+    steppers[STEPPER_Z_AXIS].forward();
+    steppers[STEPPER_X_AXIS].steps(50);
+  }
+  if (down_button.is_pressed()) {
+    Serial.println("CLAW DOWN");
+    steppers[STEPPER_Z_AXIS].backward();
+    steppers[STEPPER_X_AXIS].steps(50);
+  }
+
+
+  if (x_limit_switch_button.is_pressed()) {
+    Serial.println("X Limit");
+  }
+  if (y_limit_switch_button.is_pressed()) {
+    Serial.println("Y Limit");
+  }
+  if (z_limit_switch_button.is_pressed()) {
+    Serial.println("Z Limit");
+  }
+
+  delayMicroseconds(1000);
+}
+
+void handle_end_game_state() {
 
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
