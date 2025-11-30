@@ -15,8 +15,10 @@ typedef struct {
   int step_pin;
   int dir_pin;
   bool inverted_dir;
+  int step_limit;
+  int current_step;
 
-  void init();
+  void step_init();
 
   void enable();
   void disable();
