@@ -1,7 +1,10 @@
 
+/* Servo Pins */
+#define SERVO_ENABLE                              1
+#define SERVO_SIGNAL_PIN                          13
 
 /* STEPPER PINS*/
-#define STEPPER_DRIVER_ENABLE 1
+#define STEPPER_DRIVER_ENABLE                     1
 
 #define X_STEPPER_EN_PIN                          34
 #define X_STEPPER_STEP_PIN                        36

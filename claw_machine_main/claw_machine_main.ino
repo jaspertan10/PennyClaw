@@ -1,7 +1,16 @@
 #include "pinouts.h"
 #include "stepper_driver.h"
 #include "arcade_buttons.h"
+#include "Servo.h"
 
+/*************** Servo Motor ****************/
+#if (SERVO_ENABLE != 0)
+#define SERVO_CLAW_CLOSE_ANGLE  95
+#define SERVO_CLAW_OPEN_ANGLE   140
+
+Servo claw_servo;
+bool claw_closed = false;
+#endif // SERVO_ENABLE
 
 /*************** A4988 Stepper Driver & Nema 17 ****************/
 #if (STEPPER_DRIVER_ENABLE != 0)
@@ -63,6 +72,12 @@ void handle_end_game_state();
 
 
 void setup() {
+
+#if (SERVO_ENABLE != 0)
+  claw_servo.attach(SERVO_SIGNAL_PIN);
+#endif
+
+
 #if (STEPPER_DRIVER_ENABLE != 0)
   steppers[STEPPER_X_AXIS].step_init();
   steppers[STEPPER_Y_AXIS].step_init();
@@ -127,9 +142,11 @@ void loop() {
 
 
 
-void handle_init_state() {
 
+void handle_init_state() {
   //Initialize X to home position
+
+
   while (!x_limit_switch_button.is_held()) {
     steppers[STEPPER_X_AXIS].enable();
     steppers[STEPPER_X_AXIS].backward();
@@ -145,14 +162,27 @@ void handle_init_state() {
     steppers[STEPPER_Y_AXIS].disable();
   }
 
+  //Initialize Z to home position
   while (!z_limit_switch_button.is_held()) {
     steppers[STEPPER_Z_AXIS].backward();
     steppers[STEPPER_Z_AXIS].steps(50);
   }
 
+  //Initialize all step positions for all Axis to 0
   steppers[STEPPER_X_AXIS].current_step = 0;
   steppers[STEPPER_Y_AXIS].current_step = 0;
   steppers[STEPPER_Z_AXIS].current_step = 0;
+
+  //Initialize claw position
+#if (SERVO_ENABLE != 0)
+  
+  if (claw_closed == true) {
+    claw_servo.write(SERVO_CLAW_CLOSE_ANGLE);
+  }
+  else {
+    claw_servo.write(SERVO_CLAW_OPEN_ANGLE);
+  }
+#endif //SERVO_ENABLE
 }
 
 void handle_wait_penny() {
@@ -206,11 +236,31 @@ void handle_play_state() {
       steppers[STEPPER_Z_AXIS].steps(50);
     }
   }
+  else {
+    // Handle grab button as a *one-shot* per press
+    static bool last_grab_state = false;              // remembers previous pressed state
+    bool grab_now = grab_button.is_pressed();         // debounced level
+
+    if (grab_now && !last_grab_state) {               // LOW -> HIGH edge (first frame of press)
+      Serial.println("Pressed");
+
+      if (claw_closed == true) {
+        claw_servo.write(SERVO_CLAW_OPEN_ANGLE);
+        claw_closed = false;
+      }
+      else {
+        claw_servo.write(SERVO_CLAW_CLOSE_ANGLE);
+        claw_closed = true;
+      }
+    }
+
+    last_grab_state = grab_now;
+  }
 
 
 
   /* Limit switches activated for either XYZ switch. Set current step to 0 */
-  if (x_limit_switch_button.is_held()) {
+  if (x_limit_switch_button.is_held()) {  
     steppers[STEPPER_X_AXIS].current_step = 0;
   }
   if (y_limit_switch_button.is_held()) {
