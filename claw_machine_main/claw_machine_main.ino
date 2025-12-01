@@ -2,6 +2,21 @@
 #include "stepper_driver.h"
 #include "arcade_buttons.h"
 #include "Servo.h"
+#include <TimerOne.h>
+
+/*************** Timer During Play Mode ****************/
+#define PLAY_TIME_IN_SECONDS  30
+volatile int seconds = 0;
+volatile bool play_time_over = false;
+void tick();
+void start_timer();
+void stop_timer();
+
+
+
+/*************** IR Break Beam LED ****************/
+#define IR_LED_SIGNAL_PIN   7
+bool penny_detected();
 
 /*************** Servo Motor ****************/
 #if (SERVO_ENABLE != 0)
@@ -60,8 +75,10 @@ typedef enum {
   ERROR_STATE
 } States;
 
+//Global Variables
 States current_state = INIT_STATE;
 
+// Function forward declarations
 void handle_init_state();
 void handle_wait_penny();
 void handle_play_state();
@@ -72,6 +89,9 @@ void handle_end_game_state();
 
 
 void setup() {
+
+  //Initialize IR LED signal pin
+  pinMode(IR_LED_SIGNAL_PIN, INPUT_PULLUP);
 
 #if (SERVO_ENABLE != 0)
   claw_servo.attach(SERVO_SIGNAL_PIN);
@@ -124,11 +144,18 @@ void loop() {
     break;
 
     case WAIT_PENNY_STATE:
+      handle_wait_penny();
       current_state = PLAY_STATE;
+      start_timer();
     break;
 
     case PLAY_STATE:
       handle_play_state();
+      if (play_time_over) {
+        stop_timer();
+        current_state = GAME_OVER_STATE;
+      }
+      //current_state is updated to GAME_OVER after 60 seconds of play time
     break;
 
     case GAME_OVER_STATE:
@@ -144,9 +171,8 @@ void loop() {
 
 
 void handle_init_state() {
+
   //Initialize X to home position
-
-
   while (!x_limit_switch_button.is_held()) {
     steppers[STEPPER_X_AXIS].enable();
     steppers[STEPPER_X_AXIS].backward();
@@ -183,9 +209,14 @@ void handle_init_state() {
     claw_servo.write(SERVO_CLAW_OPEN_ANGLE);
   }
 #endif //SERVO_ENABLE
+
 }
 
 void handle_wait_penny() {
+
+  //Update screen to say insert penny
+
+  while (penny_detected() != true) {}
 
 }
 
@@ -272,6 +303,49 @@ void handle_play_state() {
 }
 
 void handle_end_game_state();
+
+
+
+bool penny_detected() {
+  if (digitalRead(IR_LED_SIGNAL_PIN) == LOW)
+  {
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+
+void start_timer() {
+  seconds = 0;
+  play_time_over = false;
+  
+  //1,000,000 microseconds = 1 second
+  Timer1.initialize(1000000); 
+  Timer1.attachInterrupt(tick);
+}
+
+void stop_timer() {
+  Timer1.detachInterrupt(); 
+  seconds = 0;
+  play_time_over = false;
+}
+
+void tick() {
+  seconds++;
+
+  if (seconds > PLAY_TIME_IN_SECONDS) {
+
+    play_time_over = true;
+    
+  }
+  else {
+    //Update display
+  }
+
+}
 
 
 
