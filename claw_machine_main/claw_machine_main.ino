@@ -3,12 +3,15 @@
 #include "arcade_buttons.h"
 #include "Servo.h"
 #include <TimerOne.h>
-#include <SoftwareSerial.h>
+//#include <SoftwareSerial.h>
+
 
 /*************** Serial LCD ****************/
-SoftwareSerial OpenLCD(LCD_RX_PIN, LCD_TX_PIN); //RX, TX
+//SoftwareSerial OpenLCD(LCD_RX_PIN, LCD_TX_PIN); //RX, TX
+#define OpenLCD Serial1
 byte contrast = 2; //Lower is more contrast. Contrast range = 0...5
 void clear_lcd_screen();
+volatile bool update_play_screen = false;
 
 /*************** Timer During Play Mode ****************/
 #define PLAY_TIME_IN_SECONDS  30
@@ -37,6 +40,7 @@ bool claw_closed = false;
 #if (STEPPER_DRIVER_ENABLE != 0)
 #define NUM_STEPPERS    3
 #define STEPPER_INITIAL_STEP 0
+#define STEP_AMOUNT_DEFAULT     25
 
 #define X_STEPPER_STEP_LIMIT    700
 #define Y_STEPPER_STEP_LIMIT    900
@@ -197,7 +201,7 @@ void handle_init_state() {
   while (!x_limit_switch_button.is_held()) {
     steppers[STEPPER_X_AXIS].enable();
     steppers[STEPPER_X_AXIS].backward();
-    steppers[STEPPER_X_AXIS].steps(50);
+    steppers[STEPPER_X_AXIS].steps(STEP_AMOUNT_DEFAULT);
     steppers[STEPPER_X_AXIS].disable();
   }
 
@@ -205,14 +209,14 @@ void handle_init_state() {
   while (!y_limit_switch_button.is_held()) {
     steppers[STEPPER_Y_AXIS].enable();
     steppers[STEPPER_Y_AXIS].backward();
-    steppers[STEPPER_Y_AXIS].steps(50);
+    steppers[STEPPER_Y_AXIS].steps(STEP_AMOUNT_DEFAULT);
     steppers[STEPPER_Y_AXIS].disable();
   }
 
   //Initialize Z to home position
   while (!z_limit_switch_button.is_held()) {
     steppers[STEPPER_Z_AXIS].backward();
-    steppers[STEPPER_Z_AXIS].steps(50);
+    steppers[STEPPER_Z_AXIS].steps(STEP_AMOUNT_DEFAULT);
   }
 
   //Initialize all step positions for all Axis to 0
@@ -245,11 +249,34 @@ void handle_wait_penny() {
 }
 
 void handle_play_state() {
+
+  //Update display
+  uint8_t remaining = PLAY_TIME_IN_SECONDS - seconds;
+
+  if (update_play_screen == true) {
+    clear_lcd_screen();
+
+    OpenLCD.print("   Get Some Candy!   ");
+    OpenLCD.print("                    "); //20 spaces
+
+    if (remaining >= 10) {
+      OpenLCD.print("   Time left: ");
+      OpenLCD.print(remaining);
+      OpenLCD.print("s   ");
+    } else {
+      OpenLCD.print("    Time left: ");
+      OpenLCD.print(remaining);
+      OpenLCD.print("s    ");
+    }
+
+    update_play_screen = false;
+  }
+
   if (joystick[JOYSTICK_UP].is_pressed()) {
     if (steppers[STEPPER_Y_AXIS].current_step < steppers[STEPPER_Y_AXIS].step_limit) {
       steppers[STEPPER_Y_AXIS].enable();
       steppers[STEPPER_Y_AXIS].forward();
-      steppers[STEPPER_Y_AXIS].steps(50);
+      steppers[STEPPER_Y_AXIS].steps(STEP_AMOUNT_DEFAULT);
       steppers[STEPPER_Y_AXIS].disable();
     }
   }
@@ -257,7 +284,7 @@ void handle_play_state() {
     if (steppers[STEPPER_Y_AXIS].current_step > 0) {
       steppers[STEPPER_Y_AXIS].enable();
       steppers[STEPPER_Y_AXIS].backward();
-      steppers[STEPPER_Y_AXIS].steps(50);
+      steppers[STEPPER_Y_AXIS].steps(STEP_AMOUNT_DEFAULT);
       steppers[STEPPER_Y_AXIS].disable();
     }
   }
@@ -265,7 +292,7 @@ void handle_play_state() {
     if (steppers[STEPPER_X_AXIS].current_step > 0) {
       steppers[STEPPER_X_AXIS].enable();
       steppers[STEPPER_X_AXIS].backward();
-      steppers[STEPPER_X_AXIS].steps(50);
+      steppers[STEPPER_X_AXIS].steps(STEP_AMOUNT_DEFAULT);
       steppers[STEPPER_X_AXIS].disable();
     }
   }
@@ -273,7 +300,7 @@ void handle_play_state() {
     if (steppers[STEPPER_X_AXIS].current_step < steppers[STEPPER_X_AXIS].step_limit) {
       steppers[STEPPER_X_AXIS].enable();
       steppers[STEPPER_X_AXIS].forward();
-      steppers[STEPPER_X_AXIS].steps(50);
+      steppers[STEPPER_X_AXIS].steps(STEP_AMOUNT_DEFAULT);
       steppers[STEPPER_X_AXIS].disable();
     }
   }
@@ -281,14 +308,14 @@ void handle_play_state() {
     
     if (steppers[STEPPER_Z_AXIS].current_step > 0) {
       steppers[STEPPER_Z_AXIS].backward();
-      steppers[STEPPER_Z_AXIS].steps(50);
+      steppers[STEPPER_Z_AXIS].steps(STEP_AMOUNT_DEFAULT);
     }
   }
   else if (down_button.is_pressed()) {
 
     if (steppers[STEPPER_Z_AXIS].current_step < steppers[STEPPER_Z_AXIS].step_limit) {
       steppers[STEPPER_Z_AXIS].forward();
-      steppers[STEPPER_Z_AXIS].steps(50);
+      steppers[STEPPER_Z_AXIS].steps(STEP_AMOUNT_DEFAULT);
     }
   }
   else {
@@ -297,7 +324,6 @@ void handle_play_state() {
     bool grab_now = grab_button.is_pressed();         // debounced level
 
     if (grab_now && !last_grab_state) {               // LOW -> HIGH edge (first frame of press)
-      Serial.println("Pressed");
 
       if (claw_closed == true) {
         claw_servo.write(SERVO_CLAW_OPEN_ANGLE);
@@ -321,7 +347,7 @@ void handle_play_state() {
   if (y_limit_switch_button.is_held()) {
     steppers[STEPPER_Y_AXIS].current_step = 0;
   }
-  if (z_limit_switch_button.is_pressed()) {
+  if (z_limit_switch_button.is_held()) {
     steppers[STEPPER_Z_AXIS].current_step = 0;
   }
 }
@@ -330,8 +356,9 @@ void handle_end_game_state() {
 
   //Game over screen
   clear_lcd_screen();
-  OpenLCD.print("      Game Over      ");
-  OpenLCD.print("  Thanks for playing ");
+  OpenLCD.print("      Game Over     ");
+  OpenLCD.print(" Thanks for playing ");
+
 
 
   /* 
@@ -344,17 +371,20 @@ void handle_end_game_state() {
   // Close claw
   claw_servo.write(SERVO_CLAW_CLOSE_ANGLE);
 
+  //Give ample time to grab last item
+  delay(1500);
+
   // Move claw up to ~200 steps
   while (steppers[STEPPER_Z_AXIS].current_step > 200) {
     steppers[STEPPER_Z_AXIS].backward();
-    steppers[STEPPER_Z_AXIS].steps(50);
+    steppers[STEPPER_Z_AXIS].steps(STEP_AMOUNT_DEFAULT);
   }
 
   // Move X to home position
   while (!x_limit_switch_button.is_held()) {
     steppers[STEPPER_X_AXIS].enable();
     steppers[STEPPER_X_AXIS].backward();
-    steppers[STEPPER_X_AXIS].steps(50);
+    steppers[STEPPER_X_AXIS].steps(STEP_AMOUNT_DEFAULT);
     steppers[STEPPER_X_AXIS].disable();
   }
 
@@ -362,9 +392,11 @@ void handle_end_game_state() {
   while (!y_limit_switch_button.is_held()) {
     steppers[STEPPER_Y_AXIS].enable();
     steppers[STEPPER_Y_AXIS].backward();
-    steppers[STEPPER_Y_AXIS].steps(50);
+    steppers[STEPPER_Y_AXIS].steps(STEP_AMOUNT_DEFAULT);
     steppers[STEPPER_Y_AXIS].disable();
   }
+
+  delay(1000);
 
   // Open claw
   claw_servo.write(SERVO_CLAW_OPEN_ANGLE);
@@ -376,7 +408,7 @@ void handle_end_game_state() {
     OpenLCD.print("      Game Over      ");
     OpenLCD.print("  Thanks for playing ");
     OpenLCD.print("                    "); //20 spaces
-    OpenLCD.print("         ");  // 9 spaces
+    OpenLCD.print("        ");  // 8 spaces
     OpenLCD.print(i);           // i = 5 → 0 (single digit)
     OpenLCD.print("          "); // 10 spaces
   
@@ -418,27 +450,12 @@ void stop_timer() {
 void tick() {
   seconds++;
 
-  if (seconds > PLAY_TIME_IN_SECONDS) {
-
+  if (seconds >= PLAY_TIME_IN_SECONDS) {
     play_time_over = true;
-    
   }
-  else {
-    clear_lcd_screen();
-    OpenLCD.print("     PennyClaw      ");
-    if (seconds >= 10) {
-      OpenLCD.print("   Time left: ");
-      OpenLCD.print(seconds);
-      OpenLCD.print("s   ");
-    } else {
-      OpenLCD.print("    Time left: ");
-      OpenLCD.print(seconds);
-      OpenLCD.print("s    ");
-    }
-
-    OpenLCD.print("   Get Some Candy!   ");
-  }
-
+   
+   
+  update_play_screen = true;
 }
 
 void clear_lcd_screen() {

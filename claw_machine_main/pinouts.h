@@ -41,5 +41,5 @@
 #define IR_LED_SIGNAL_PIN   7
 
 /* Sparkfun Serial LCD */
-#define LCD_TX_PIN                                10
-#define LCD_RX_PIN                                2
+#define LCD_TX_PIN                                18
+#define LCD_RX_PIN                                19
