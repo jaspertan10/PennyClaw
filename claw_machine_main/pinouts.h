@@ -36,3 +36,10 @@
 #define X_LIMIT_SWITCH_BUTTON_PIN                 4
 #define Y_LIMIT_SWITCH_BUTTON_PIN                 3
 #define Z_LIMIT_SWITCH_BUTTON_PIN                 2
+
+/* IR Break Beam LED for Penny Detection */
+#define IR_LED_SIGNAL_PIN   7
+
+/* Sparkfun Serial LCD */
+#define LCD_TX_PIN                                10
+#define LCD_RX_PIN                                2

@@ -3,6 +3,12 @@
 #include "arcade_buttons.h"
 #include "Servo.h"
 #include <TimerOne.h>
+#include <SoftwareSerial.h>
+
+/*************** Serial LCD ****************/
+SoftwareSerial OpenLCD(LCD_RX_PIN, LCD_TX_PIN); //RX, TX
+byte contrast = 2; //Lower is more contrast. Contrast range = 0...5
+void clear_lcd_screen();
 
 /*************** Timer During Play Mode ****************/
 #define PLAY_TIME_IN_SECONDS  30
@@ -13,10 +19,9 @@ void start_timer();
 void stop_timer();
 
 
-
 /*************** IR Break Beam LED ****************/
-#define IR_LED_SIGNAL_PIN   7
 bool penny_detected();
+
 
 /*************** Servo Motor ****************/
 #if (SERVO_ENABLE != 0)
@@ -26,6 +31,7 @@ bool penny_detected();
 Servo claw_servo;
 bool claw_closed = false;
 #endif // SERVO_ENABLE
+
 
 /*************** A4988 Stepper Driver & Nema 17 ****************/
 #if (STEPPER_DRIVER_ENABLE != 0)
@@ -67,6 +73,8 @@ arcade_button_t z_limit_switch_button = {Z_LIMIT_SWITCH_BUTTON_PIN, HIGH, ARCADE
 
 
 
+
+/*************** Program State Machine ****************/
 typedef enum {
   INIT_STATE,
   WAIT_PENNY_STATE,
@@ -89,6 +97,19 @@ void handle_end_game_state();
 
 
 void setup() {
+
+/* Initialize LCD */
+  OpenLCD.begin(9600);
+  //Send contrast setting
+  OpenLCD.write('|'); //Put LCD into setting mode
+  OpenLCD.write(24); //Send contrast command
+  OpenLCD.write(contrast);
+
+  clear_lcd_screen();
+  OpenLCD.print("     PennyClaw     ");
+  OpenLCD.print("                    "); // Line 2 (blank)
+  OpenLCD.print("   Initializing...   ");
+
 
   //Initialize IR LED signal pin
   pinMode(IR_LED_SIGNAL_PIN, INPUT_PULLUP);
@@ -127,11 +148,9 @@ void setup() {
 #endif //ARCADE_ENABLE
 
 
+
   Serial.begin(9600);
 }
-
-
-
 
 
 void loop() {
@@ -169,6 +188,7 @@ void loop() {
 
 
 
+/***************************************************************************************************************************************************/
 
 
 void handle_init_state() {
@@ -216,6 +236,9 @@ void handle_init_state() {
 void handle_wait_penny() {
 
   //Update screen to say insert penny
+  clear_lcd_screen();
+  OpenLCD.print("                    "); // Line 1 (blank)
+  OpenLCD.print("   Insert penny -->   ");
 
   while (penny_detected() != true) {}
 
@@ -306,6 +329,9 @@ void handle_play_state() {
 void handle_end_game_state() {
 
   //Game over screen
+  clear_lcd_screen();
+  OpenLCD.print("      Game Over      ");
+  OpenLCD.print("  Thanks for playing ");
 
 
   /* 
@@ -342,6 +368,20 @@ void handle_end_game_state() {
 
   // Open claw
   claw_servo.write(SERVO_CLAW_OPEN_ANGLE);
+
+
+  //Game over screen with countdown
+  for (int i = 5; i >= 0; i--) {
+    clear_lcd_screen();
+    OpenLCD.print("      Game Over      ");
+    OpenLCD.print("  Thanks for playing ");
+    OpenLCD.print("                    "); //20 spaces
+    OpenLCD.print("         ");  // 9 spaces
+    OpenLCD.print(i);           // i = 5 → 0 (single digit)
+    OpenLCD.print("          "); // 10 spaces
+  
+    delay(1000); // so the user can see the countdown
+  }
 }
 
 
@@ -384,9 +424,26 @@ void tick() {
     
   }
   else {
-    //Update display
+    clear_lcd_screen();
+    OpenLCD.print("     PennyClaw      ");
+    if (seconds >= 10) {
+      OpenLCD.print("   Time left: ");
+      OpenLCD.print(seconds);
+      OpenLCD.print("s   ");
+    } else {
+      OpenLCD.print("    Time left: ");
+      OpenLCD.print(seconds);
+      OpenLCD.print("s    ");
+    }
+
+    OpenLCD.print("   Get Some Candy!   ");
   }
 
+}
+
+void clear_lcd_screen() {
+  OpenLCD.write('|');
+  OpenLCD.write('-');
 }
 
 
