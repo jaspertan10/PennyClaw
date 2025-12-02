@@ -31,6 +31,8 @@
 #define ARCADE_GRAB_BUTTON_PIN                    43
 #define ARCADE_DOWN_BUTTON_PIN                    45
 
+
+/* XYZ Gantry Limit Switches */
 #define X_LIMIT_SWITCH_BUTTON_PIN                 4
 #define Y_LIMIT_SWITCH_BUTTON_PIN                 3
 #define Z_LIMIT_SWITCH_BUTTON_PIN                 2

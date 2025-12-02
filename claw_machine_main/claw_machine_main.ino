@@ -159,7 +159,8 @@ void loop() {
     break;
 
     case GAME_OVER_STATE:
-
+      handle_end_game_state();
+      current_state = WAIT_PENNY_STATE;
     break;
 
   }
@@ -302,7 +303,48 @@ void handle_play_state() {
   }
 }
 
-void handle_end_game_state();
+void handle_end_game_state() {
+
+  //Game over screen
+
+
+  /* 
+    1. Close claw
+    2. Move claw up to ~200 step
+    3. Move X Y gantry to home position
+    4. Open claw
+  */
+
+  // Close claw
+  claw_servo.write(SERVO_CLAW_CLOSE_ANGLE);
+
+  // Move claw up to ~200 steps
+  while (steppers[STEPPER_Z_AXIS].current_step > 200) {
+    steppers[STEPPER_Z_AXIS].backward();
+    steppers[STEPPER_Z_AXIS].steps(50);
+  }
+
+  // Move X to home position
+  while (!x_limit_switch_button.is_held()) {
+    steppers[STEPPER_X_AXIS].enable();
+    steppers[STEPPER_X_AXIS].backward();
+    steppers[STEPPER_X_AXIS].steps(50);
+    steppers[STEPPER_X_AXIS].disable();
+  }
+
+  // Move Y to home position
+  while (!y_limit_switch_button.is_held()) {
+    steppers[STEPPER_Y_AXIS].enable();
+    steppers[STEPPER_Y_AXIS].backward();
+    steppers[STEPPER_Y_AXIS].steps(50);
+    steppers[STEPPER_Y_AXIS].disable();
+  }
+
+  // Open claw
+  claw_servo.write(SERVO_CLAW_OPEN_ANGLE);
+}
+
+
 
 
 
